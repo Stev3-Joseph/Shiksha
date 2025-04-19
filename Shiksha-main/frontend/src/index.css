@@ -1,0 +1,99 @@
+@import "tailwindcss";
+
+.anek-latin {
+    font-family: "Anek Latin", serif;
+    font-optical-sizing: auto;
+    font-weight: 400;
+    font-style: normal;
+    font-variation-settings:
+        "wdth" 100;
+}
+
+.h-stretch{
+    height: 100%;
+}
+
+@keyframes appear-left{
+    from {
+        opacity: 0.5;
+        transform: translateX(-50px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+@keyframes appear-right{
+    from {
+        opacity: 0.5;
+        transform: translateX(50px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+@keyframes appear-bottom{
+    from {
+        opacity: 0.5;
+        transform: translateY(50px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes appear-top{
+    from {
+        opacity: 0.5;
+        transform: translateY(-50px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+@keyframes header-animation{
+    from {
+        transform: translateY(-50px);
+    }
+    to {
+        transform: translateY(0);
+    }
+}
+
+.header-animation{
+    animation: header-animation 0.5s ease-out 1;
+}
+.hero-animation-a{
+    animation: appear-bottom 1s ease-out 1;
+}
+.hero-animation-b{
+    animation: appear-bottom 1.5s ease-out 1;
+}
+
+.appear-left {
+    animation: appear-left 0.5s ease-out 1;
+    animation-timeline: view();
+    animation-range: entry 0% cover 40%;
+}
+
+.appear-right {
+    animation: appear-right 0.5s ease-out 1;
+    animation-timeline: view();
+    animation-range: entry 0% cover 40%;
+}
+
+.appear-bottom {
+    animation: appear-bottom 0.5s ease-out 1;
+    animation-timeline: view();
+    animation-range: entry 0% cover 40%;
+}
+
+.appear-top {
+    animation: appear-top 0.5s ease-out 1;
+    animation-timeline: view();
+    animation-range: entry 0% cover 30%;
+}
