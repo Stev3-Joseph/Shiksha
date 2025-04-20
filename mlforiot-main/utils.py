@@ -11,10 +11,10 @@ def visualize_student_performance(student_section_performance, student_overall, 
     
     # Section performance - only selected student vs average
     ax1 = fig.add_subplot(221)
-    
     if selected_student:
         # Get data for the selected student
         student_data = student_section_performance[student_section_performance['student_id'] == selected_student]
+        
         sections = ['A', 'B', 'C', 'D']
         section_names = ['Math (A)', 'Verbal (B)', 'Non-verbal (C)', 'Comprehension (D)']
         
@@ -54,13 +54,11 @@ def visualize_student_performance(student_section_performance, student_overall, 
         # Add value labels
         for i, v in enumerate(student_scores):
             ax1.text(i - width/2, v + 2, f"{v:.1f}%", ha='center')
-        
         for i, v in enumerate(avg_scores):
             ax1.text(i + width/2, v + 2, f"{v:.1f}%", ha='center')
     
     # Overall performance comparison
     ax2 = fig.add_subplot(222)
-    
     if selected_student:
         # Get overall score for selected student
         student_overall_score = student_overall[student_overall['student_id'] == selected_student]['overall_score'].values[0]
@@ -81,7 +79,6 @@ def visualize_student_performance(student_section_performance, student_overall, 
     
     # Radar chart for section performance
     ax3 = fig.add_subplot(212, polar=True)
-    
     if selected_student:
         # Get data for radar chart
         sections = ['A', 'B', 'C', 'D']
@@ -167,7 +164,6 @@ def visualize_student_vs_average(student_data, avg_section_performance, section_
     # Use subject names instead of section codes
     subject_names = [f"{section_mapping[s]} ({s})" for s in sections]
     ax.set_xticklabels(subject_names)
-    
     ax.legend()
     
     # Add value labels on top of bars
@@ -184,4 +180,81 @@ def visualize_student_vs_average(student_data, avg_section_performance, section_
     ax.set_ylim(0, max(max(student_scores), max(avg_scores)) * 1.15)
     
     plt.tight_layout()
+    return fig
+
+def visualize_topic_performance(topic_analysis, section_mapping):
+    """
+    Create visualization for topic-level performance analysis
+    """
+    if topic_analysis.empty:
+        # Create empty figure if no data
+        fig, ax = plt.subplots(figsize=(10, 6))
+        ax.text(0.5, 0.5, "No topic data available", ha='center', va='center', fontsize=14)
+        ax.axis('off')
+        return fig
+    
+    # Create a figure with subplots for each section
+    sections = topic_analysis['section'].unique()
+    n_sections = len(sections)
+    
+    if n_sections == 0:
+        # Create empty figure if no sections
+        fig, ax = plt.subplots(figsize=(10, 6))
+        ax.text(0.5, 0.5, "No topic data available", ha='center', va='center', fontsize=14)
+        ax.axis('off')
+        return fig
+    
+    # Calculate grid dimensions
+    n_cols = min(2, n_sections)
+    n_rows = (n_sections + n_cols - 1) // n_cols
+    
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(15, 5 * n_rows))
+    
+    # Convert to 2D array if only one row
+    if n_rows == 1 and n_cols == 1:
+        axes = np.array([[axes]])
+    elif n_rows == 1 or n_cols == 1:
+        axes = np.array(axes).reshape(n_rows, n_cols)
+    
+    # Plot each section
+    for i, section in enumerate(sections):
+        row = i // n_cols
+        col = i % n_cols
+        ax = axes[row, col]
+        
+        # Filter data for this section
+        section_data = topic_analysis[topic_analysis['section'] == section].sort_values('accuracy')
+        
+        # Get section name
+        section_name = section_mapping.get(section, f"Section {section}")
+        
+        # Create horizontal bar chart
+        colors = ['#ff9999' if is_weak else '#99ccff' for is_weak in section_data['is_weak']]
+        bars = ax.barh(section_data['topic'], section_data['accuracy'], color=colors)
+        
+        # Add labels
+        ax.set_title(f"{section_name} (Section {section}) - Topic Performance")
+        ax.set_xlabel('Accuracy (%)')
+        ax.set_xlim(0, 100)
+        
+        # Add value labels
+        for bar in bars:
+            width = bar.get_width()
+            ax.text(min(width + 2, 95), 
+                   bar.get_y() + bar.get_height()/2, 
+                   f"{width:.1f}%", 
+                   va='center')
+        
+        # Add a line for 50% threshold
+        ax.axvline(x=50, color='red', linestyle='--', alpha=0.7)
+        ax.text(50, ax.get_ylim()[1] * 0.95, "50%", va='top', ha='center', color='red')
+    
+    # Hide empty subplots
+    #final
+    for i in range(n_sections, n_rows * n_cols):
+        row = i // n_cols
+        col = i % n_cols
+        axes[row, col].axis('off')
+    
+    plt.tight_layout(pad=3.0)
     return fig

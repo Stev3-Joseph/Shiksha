@@ -3,9 +3,18 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
 import os
-from model import calculate_student_metrics, identify_strengths_weaknesses, calculate_average_performance, evaluate_model, generate_specific_recommendations
-from utils import visualize_student_performance, visualize_student_vs_average
+from model import (
+    calculate_student_metrics,
+    identify_strengths_weaknesses,
+    calculate_average_performance,
+    evaluate_model,
+    generate_specific_recommendations,
+    analyze_topic_performance,
+    generate_topic_based_recommendations
+)
+from utils import visualize_student_performance, visualize_student_vs_average, visualize_topic_performance
 from dotenv import load_dotenv
+
 # Load environment variables from .env file
 load_dotenv()
 
@@ -14,6 +23,7 @@ os.makedirs('data', exist_ok=True)
 
 # Get API key from environment variables
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
+
 def main():
     st.set_page_config(
         page_title="Student Performance Analysis",
@@ -24,7 +34,7 @@ def main():
     st.title("Student Performance Analysis and Recommendations")
     
     upload_mode = st.radio("Select upload mode:", ["Existing database", "New student data"])
-
+    
     if upload_mode == "Existing database":
         try:
             data = pd.read_csv('data/student_data.csv')
@@ -36,7 +46,6 @@ def main():
         uploaded_file = st.file_uploader("Upload new student data", type=["csv"])
         if uploaded_file is not None:
             new_student_data = pd.read_csv(uploaded_file)
-            
             try:
                 # Save uploaded data
                 os.makedirs('data', exist_ok=True)
@@ -66,6 +75,9 @@ def main():
         # Calculate average performance
         avg_section_performance, avg_overall_performance = calculate_average_performance(student_section_performance, student_overall)
         
+        # Analyze topic performance
+        topic_performance = analyze_topic_performance(data, selected_student)
+        
         # Display class averages
         st.subheader("Class Performance Averages")
         col1, col2 = st.columns(2)
@@ -76,6 +88,7 @@ def main():
         with col2:
             # Display section averages
             section_mapping = {'A': 'Math', 'B': 'Verbal', 'C': 'Non-verbal', 'D': 'Comprehension'}
+            
             section_avg_data = pd.DataFrame({
                 'Section': [f"{section_mapping[row['section']]} ({row['section']})" for _, row in avg_section_performance.iterrows()],
                 'Average Score': [f"{row['avg_score_percentage']:.2f}%" for _, row in avg_section_performance.iterrows()]
@@ -91,8 +104,10 @@ def main():
         
         # Visualize overall performance
         st.subheader("Overall Performance Analysis")
-        fig = visualize_student_performance(student_section_performance, student_overall, 
-                                           avg_section_performance, avg_overall_performance, selected_student)
+        fig = visualize_student_performance(
+            student_section_performance, student_overall,
+            avg_section_performance, avg_overall_performance, selected_student
+        )
         st.pyplot(fig)
         
         # Identify strengths and weaknesses
@@ -131,40 +146,110 @@ def main():
         overall = student_overall[student_overall['student_id'] == selected_student]['overall_score'].values[0]
         
         col1, col2, col3 = st.columns(3)
+        
         with col1:
             st.metric("Student's Overall Score", f"{overall:.2f}%")
+        
         with col2:
             st.metric("Class Average", f"{avg_overall_performance:.2f}%")
+        
         with col3:
             difference = overall - avg_overall_performance
             st.metric("Difference from Average", f"{difference:.2f}%", 
-                      delta=f"{difference:.2f}%", delta_color="normal")
+                     delta=f"{difference:.2f}%", delta_color="normal")
         
         # Strengths and weaknesses
         st.markdown("### Performance Summary:")
         col1, col2 = st.columns(2)
+        
         with col1:
             st.write("**Strengths:**", ', '.join(f"{section_mapping[s]} (Section {s})" for s in strengths_weaknesses[selected_student]['strengths']))
+        
         with col2:
             st.write("**Areas for Improvement:**", ', '.join(f"{section_mapping[w]} (Section {w})" for w in strengths_weaknesses[selected_student]['weaknesses']))
         
+        # Topic-level performance visualization
+        if not topic_performance.empty:
+            st.subheader("Topic-Level Performance Analysis")
+            topic_fig = visualize_topic_performance(topic_performance, section_mapping)
+            st.pyplot(topic_fig)
+            
+            # Display topic performance table for all sections
+            st.markdown("### Topic Performance Details:")
+            
+            # Create tabs for each section
+            tabs = st.tabs([f"{section_mapping[section]} (Section {section})" for section in ['A', 'B', 'C', 'D']])
+            
+            # Display topic performance for each section in its respective tab
+            for i, section in enumerate(['A', 'B', 'C', 'D']):
+                with tabs[i]:
+                    section_topic_data = topic_performance[topic_performance['section'] == section].copy()
+                    
+                    if not section_topic_data.empty:
+                        # Add subject name
+                        section_topic_data['Subject'] = section_mapping[section]
+                        
+                        # Format the table
+                        display_data = section_topic_data[['Subject', 'topic', 'total_questions', 'correct_answers', 'accuracy', 'is_weak']]
+                        display_data.columns = ['Subject', 'Topic', 'Total Questions', 'Correct Answers', 'Accuracy (%)', 'Needs Focus']
+                        
+                        # Sort by accuracy (ascending) to show weakest topics first
+                        display_data = display_data.sort_values('Accuracy (%)', ascending=True)
+                        
+                        # Format accuracy as percentage with 1 decimal place
+                        display_data['Accuracy (%)'] = display_data['Accuracy (%)'].apply(lambda x: f"{x:.1f}%")
+                        
+                        # Display the dataframe
+                        st.dataframe(display_data, hide_index=True, use_container_width=True)
+                    else:
+                        st.info(f"No topic data available for {section_mapping[section]} (Section {section})")
+        
+        # Topic-based recommendations
+        with st.spinner("Generating topic-based recommendations..."):
+            topic_recommendations = generate_topic_based_recommendations(
+                data, selected_student, OPENROUTER_API_KEY
+            )
+        
+        if topic_recommendations:
+            st.subheader("Topic-Based Personalized Recommendations")
+            
+            for section, content in topic_recommendations.items():
+                section_name = section_mapping.get(section, f"Section {section}")
+                with st.expander(f"{section_name} (Section {section}):", expanded=(section in strengths_weaknesses[selected_student]['weaknesses'])):
+                    if 'analysis' in content:
+                        st.markdown("**Analysis:**")
+                        st.markdown(content['analysis'])
+                    
+                    if 'recommendations' in content:
+                        st.markdown("**Recommendations:**")
+                        st.markdown(content['recommendations'])
+                    
+                    if 'study_plan' in content:
+                        st.markdown("**Study Plan:**")
+                        st.markdown(content['study_plan'])
+                    
+                    if 'full_response' in content:
+                        st.markdown(content['full_response'])
+        
         # Generate highly specific recommendations
         with st.spinner("Generating personalized recommendations..."):
-            specific_recommendations = generate_specific_recommendations(data, selected_student, student_section_performance, 
-                                                                    avg_section_performance, OPENROUTER_API_KEY)
+            specific_recommendations = generate_specific_recommendations(
+                data, selected_student, student_section_performance,
+                avg_section_performance, OPENROUTER_API_KEY
+            )
         
         # Display personalized recommendations
         st.markdown("### Personalized Recommendations:")
-        
         for section, section_name in section_mapping.items():
             with st.expander(f"{section_name} (Section {section}):", expanded=(section in strengths_weaknesses[selected_student]['weaknesses'])):
                 if section in specific_recommendations:
                     for recommendation in specific_recommendations[section]:
-                        st.markdown(f"• {recommendation}")
+                        st.markdown(f"- {recommendation}")
                 else:
                     st.write("No specific recommendations available for this section.")
         
         # Comparison with average
+        #final
         st.subheader("Comparison with Average Performance")
         fig_comp = visualize_student_vs_average(student_data, avg_section_performance, section_mapping)
         st.pyplot(fig_comp)
