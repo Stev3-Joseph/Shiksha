@@ -11,3 +11,5 @@ Backend/secret_key.py
 
 # Ignore Python cache
 __pycache__/
+
+insert.py
